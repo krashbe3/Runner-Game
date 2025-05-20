@@ -52,14 +52,15 @@
     <p>Évitez les obstacles au sol, au milieu et en hauteur.<br>Survivez le plus longtemps possible et faites le meilleur score !</p>
     <button id="start-btn">Continuer</button>
   </div>
-  <div id="game-screen">
-    <canvas id="game-canvas" width="800" height="300"></canvas>
-  </div>
+  <canvas id="game-canvas" width="800" height="300"></canvas>
 
 <script>
 (() => {
   const canvas = document.getElementById('game-canvas');
   const ctx = canvas.getContext('2d');
+
+  const startScreen = document.getElementById('start-screen');
+  const startBtn = document.getElementById('start-btn');
 
   const WIDTH = canvas.width;
   const HEIGHT = canvas.height;
@@ -127,45 +128,6 @@
     gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
     osc.stop(audioCtx.currentTime + duration);
-  }
-
-  const animFrames = {
-    run: [
-      [0,0],[40,0],[80,0],[120,0]
-    ],
-    jump: [
-      [0,60],[40,60],[80,60],[120,60]
-    ],
-    slide: [
-      [0,120],[40,120],[80,120]
-    ],
-    dead: [
-      [0,180]
-    ]
-  };
-
-  function drawPlayerFrame(x, y, frameIndex, anim) {
-    ctx.fillStyle = '#00ffff';
-    ctx.shadowColor = '#00ffff';
-    ctx.shadowBlur = 10;
-    ctx.lineWidth = 2;
-
-    ctx.clearRect(x - 1, y - 1, player.width + 2, player.height + 2);
-
-    ctx.strokeStyle = '#00ffff';
-
-    ctx.strokeRect(x, y, player.width, player.height);
-
-    ctx.beginPath();
-    let offset = (frameIndex % 4) * 3;
-    for(let i=0; i<player.height; i+=8) {
-      ctx.moveTo(x + offset, y + i);
-      ctx.lineTo(x + offset + 5, y + i + 4);
-    }
-    ctx.stroke();
-
-    ctx.fillStyle = anim === 'dead' ? '#ff0044' : '#00ffff';
-    ctx.fillRect(x + 10, y + 10, 6, 6);
   }
 
   const gravity = 1.2;
@@ -243,9 +205,9 @@
     player.frameCount++;
     if(player.frameCount % 5 === 0) {
       player.frameIndex++;
-      if(player.currentAnim === 'run' && player.frameIndex >= animFrames.run.length) player.frameIndex = 0;
-      if(player.currentAnim === 'jump' && player.frameIndex >= animFrames.jump.length) player.frameIndex = animFrames.jump.length - 1;
-      if(player.currentAnim === 'slide' && player.frameIndex >= animFrames.slide.length) player.frameIndex = 0;
+      if(player.currentAnim === 'run' && player.frameIndex >= 4) player.frameIndex = 0;
+      if(player.currentAnim === 'jump' && player.frameIndex >= 4) player.frameIndex = 3;
+      if(player.currentAnim === 'slide' && player.frameIndex >= 3) player.frameIndex = 0;
     }
   }
 
@@ -263,7 +225,11 @@
 
     obstacles.forEach(obs => obs.draw());
 
-    drawPlayerFrame(player.x, player.y, player.frameIndex, player.currentAnim);
+    // Draw player (simple rectangle with neon glow)
+    ctx.fillStyle = '#00ffff';
+    ctx.shadowColor = '#00ffff';
+    ctx.shadowBlur = 10;
+    ctx.fillRect(player.x, player.y, player.width, player.height);
 
     ctx.fillStyle = '#00ffff';
     ctx.font = 'bold 24px monospace';
@@ -277,7 +243,7 @@
       ctx.fillText('Game Over!', WIDTH / 2 - 130, HEIGHT / 2);
       ctx.font = '24px monospace';
       ctx.fillText(`High Score: ${highScore}`, WIDTH / 2 - 110, HEIGHT / 2 + 40);
-      ctx.fillText('Refresh page to restart', WIDTH / 2 - 130, HEIGHT / 2 + 80);
+      ctx.fillText('Recharge la page pour rejouer', WIDTH / 2 - 140, HEIGHT / 2 + 80);
     }
   }
 
@@ -286,24 +252,6 @@
     draw();
     if(!gameOver) requestAnimationFrame(loop);
   }
-
-  window.addEventListener('keydown', (e) => {
-    if(gameOver) return;
-    if(e.key === 'ArrowUp' && !player.jumping && !player.sliding) {
-      player.vy = jumpForce;
-      player.jumping = true;
-      player.currentAnim = 'jump';
-      playSound(600, 0.1);
-    }
-    if(e.key === 'ArrowDown' && !player.jumping && !player.sliding) {
-      player.sliding = true;
-      player.slideTimer = 20;
-      player.currentAnim = 'slide';
-      player.height = 30;
-      player.y = HEIGHT - 100;
-      playSound(400, 0.1);
-    }
-  });
 
   function startGame() {
     obstacles = [];
@@ -320,15 +268,13 @@
     player.frameCount = 0;
   }
 
-  document.getElementById('start-btn').addEventListener('click', () => {
-    document.getElementById('start-screen').style.display = 'none';
+  startBtn.addEventListener('click', () => {
+    startScreen.style.display = 'none';
     canvas.style.display = 'block';
     startGame();
     loop();
   });
-
 })();
 </script>
-
 </body>
 </html>
