@@ -56,7 +56,7 @@
       } else if (type === 'high') {
         this.width = 40;
         this.height = 40;
-        this.y = HEIGHT - 100;  // baissé pour forcer à se baisser
+        this.y = HEIGHT - 90;  // plus bas pour forcer à se baisser
       }
       this.x = WIDTH + 20;
       this.speed = gameSpeed;
@@ -127,13 +127,13 @@
       obstacleTimer = 0;
       const r = Math.random();
       let t;
-      if(r < 0.4) t = 'low';
-      else if(r < 0.75) t = 'high';
-      else t = 'mid';
+      if(r < 0.3) t = 'low';       // 30% obstacles au sol (à sauter)
+      else if(r < 0.8) t = 'high'; // 50% obstacles hauts (à glisser dessous)
+      else t = 'mid';              // 20% obstacles milieu (à sauter)
       obstacles.push(new Obstacle(t));
 
-      if(obstacleInterval > 30) obstacleInterval -= 1.2;  // accélère plus la fréquence d'apparition
-      gameSpeed += 0.08;  // accélération plus rapide
+      if(obstacleInterval > 30) obstacleInterval -= 1.2;
+      gameSpeed += 0.08;
     }
 
     obstacles.forEach((obs, i) => {
