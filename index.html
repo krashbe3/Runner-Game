@@ -10,31 +10,7 @@
     display: flex; justify-content: center; align-items: center; height: 100vh;
     flex-direction: column;
   }
-  #start-screen, #game-screen {
-    width: 100vw; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;
-  }
-  #start-screen {
-    padding: 30px;
-    text-align: center;
-  }
-  button {
-    margin-top: 30px;
-    background: #00ffff;
-    color: #001f2f;
-    font-weight: bold;
-    font-size: 1.2rem;
-    border: none;
-    padding: 12px 30px;
-    border-radius: 8px;
-    cursor: pointer;
-    box-shadow: 0 0 10px #00ffff;
-    transition: background 0.3s ease;
-  }
-  button:hover {
-    background: #00cccc;
-  }
   canvas {
-    display: none;
     background: #001f2f;
     box-shadow: 0 0 30px #00ffff;
     border-radius: 10px;
@@ -42,25 +18,12 @@
 </style>
 </head>
 <body>
-  <div id="start-screen">
-    <h1>Krashcore Dino Runner</h1>
-    <p>Contrôles :</p>
-    <ul style="text-align: left; max-width: 400px; margin: 0 auto;">
-      <li>Flèche Haut : Sauter</li>
-      <li>Flèche Bas : Glisser (se baisser)</li>
-    </ul>
-    <p>Évitez les obstacles au sol, au milieu et en hauteur.<br>Survivez le plus longtemps possible et faites le meilleur score !</p>
-    <button id="start-btn">Continuer</button>
-  </div>
   <canvas id="game-canvas" width="800" height="300"></canvas>
 
 <script>
 (() => {
   const canvas = document.getElementById('game-canvas');
   const ctx = canvas.getContext('2d');
-
-  const startScreen = document.getElementById('start-screen');
-  const startBtn = document.getElementById('start-btn');
 
   const WIDTH = canvas.width;
   const HEIGHT = canvas.height;
@@ -170,7 +133,7 @@
       obstacles.push(new Obstacle(t));
 
       if(obstacleInterval > 30) obstacleInterval -= 0.7;
-      gameSpeed += 0.04; // accélération plus forte
+      gameSpeed += 0.04;
     }
 
     obstacles.forEach((obs, i) => {
@@ -268,12 +231,27 @@
     player.frameCount = 0;
   }
 
-  startBtn.addEventListener('click', () => {
-    startScreen.style.display = 'none';
-    canvas.style.display = 'block';
-    startGame();
-    loop();
+  // Controls
+  window.addEventListener('keydown', e => {
+    if(gameOver) return;
+
+    if(e.key === 'ArrowUp' && !player.jumping && !player.sliding) {
+      player.jumping = true;
+      player.vy = jumpForce;
+      player.currentAnim = 'jump';
+      playSound(500, 0.1);
+    }
+    if(e.key === 'ArrowDown' && !player.jumping && !player.sliding) {
+      player.sliding = true;
+      player.slideTimer = 20;
+      player.currentAnim = 'slide';
+      player.height = 30;
+      player.y = HEIGHT - 100;
+    }
   });
+
+  startGame();
+  loop();
 })();
 </script>
 </body>
