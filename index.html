@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Krashcore Dino Runner</title>
+<style>
+  body {
+    margin: 0; background: #001f2f; color: #00ffff; font-family: 'Courier New', monospace; overflow: hidden;
+    display: flex; justify-content: center; align-items: center; height: 100vh;
+    flex-direction: column;
+  }
+  #start-screen, #game-screen {
+    width: 100vw; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;
+  }
+  #start-screen {
+    padding: 30px;
+    text-align: center;
+  }
+  button {
+    margin-top: 30px;
+    background: #00ffff;
+    color: #001f2f;
+    font-weight: bold;
+    font-size: 1.2rem;
+    border: none;
+    padding: 12px 30px;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 0 10px #00ffff;
+    transition: background 0.3s ease;
+  }
+  button:hover {
+    background: #00cccc;
+  }
+  canvas {
+    display: none;
+    background: #001f2f;
+    box-shadow: 0 0 30px #00ffff;
+    border-radius: 10px;
+  }
+</style>
+</head>
+<body>
+  <div id="start-screen">
+    <h1>Krashcore Dino Runner</h1>
+    <p>Contrôles :</p>
+    <ul style="text-align: left; max-width: 400px; margin: 0 auto;">
+      <li>Flèche Haut : Sauter</li>
+      <li>Flèche Bas : Glisser</li>
+    </ul>
+    <p>Évitez les obstacles, survivez le plus longtemps possible et faites le meilleur score !</p>
+    <button id="start-btn">Continuer</button>
+  </div>
+  <div id="game-screen">
+    <canvas id="game-canvas" width="800" height="300"></canvas>
+  </div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('game-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const WIDTH = canvas.width;
+  const HEIGHT = canvas.height;
+
+  // Joueur properties
+  const player = {
+    x: 50,
+    y: HEIGHT - 130,
+    width: 40,
+    height: 60,
+    vy: 0,
+    jumping: false,
+    sliding: false,
+    slideTimer: 0,
+    frameIndex: 0,
+    frameCount: 0,
+    currentAnim: 'run'
+  };
+
+  // Obstacle class
+  class Obstacle {
+    constructor(type) {
+      this.type = type;
+      this.width = type === 'low' ? 20 : (type === 'mid' ? 30 : 40);
+      this.height = type === 'low' ? 40 : (type === 'mid' ? 50 : 60);
+      this.x = WIDTH + 20;
+      this.y = HEIGHT - 50 - this.height;
+      this.speed = gameSpeed;
+    }
+    update() {
+      this.x -= this.speed;
+    }
+    draw() {
+      ctx.fillStyle = '#ff0044';
+      ctx.shadowColor = '#ff0044';
+      ctx.shadowBlur = 10;
+      ctx.fillRect(this.x, this.y, this.width, this.height);
+    }
+  }
+
+  // Variables de jeu
+  let obstacles = [];
+  let gameSpeed = 6;
+  let score = 0;
+  let highScore = 0;
+  let gameOver = false;
+
+  // Sons simples
+  let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  function playSound(frequency, duration=0.1) {
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.frequency.value = frequency;
+    osc.start();
+    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    osc.stop(audioCtx.currentTime + duration);
+  }
+
+  function startMusic() {
+    // Simple beep loop as background
+    playSound(200, 0.05);
+    setTimeout(() => {
+      if(!gameOver) startMusic();
+    }, 400);
+  }
+
+  // Gestion animation frames sprite joueur
+  const animFrames = {
+    run: [
+      [0,0],[40,0],[80,0],[120,0]
+    ],
+    jump: [
+      [0,60],[40,60],[80,60],[120,60]
+    ],
+    slide: [
+      [0,120],[40,120],[80,120]
+    ],
+    dead: [
+      [0,180]
+    ]
+  };
+
+  // Dessiner joueur avec style pixel néon
+  function drawPlayerFrame(x, y, frameIndex, anim) {
+    ctx.fillStyle = '#00ffff';
+    ctx.shadowColor = '#00ffff';
+    ctx.shadowBlur = 10;
+    ctx.lineWidth = 2;
+
+    // Pour simplifier, on dessine un rectangle animé
+    ctx.clearRect(x - 1, y - 1, player.width + 2, player.height + 2);
+
+    // Effet néon pixel style: un rectangle avec des petites lignes internes
+
+    ctx.strokeStyle = '#00ffff';
+
+    // Corps
+    ctx.strokeRect(x, y, player.width, player.height);
+
+    // Traits internes animés (selon frame)
+    ctx.beginPath();
+    let offset = (frameIndex % 4) * 3;
+    for(let i=0; i<player.height; i+=8) {
+      ctx.moveTo(x + offset, y + i);
+      ctx.lineTo(x + offset + 5, y + i + 4);
+    }
+    ctx.stroke();
+
+    // Yeux neon (selon anim)
+    ctx.fillStyle = anim === 'dead' ? '#ff0044' : '#00ffff';
+    ctx.fillRect(x + 10, y + 10, 6, 6);
+  }
+
+  // Logique saut
+  const gravity = 1.2;
+  const jumpForce = 18;
+
+  // Génération obstacles
+  let obstacleTimer = 0;
+  let obstacleInterval = 100;
+
+  function update() {
+    if(gameOver) return;
+
+    // Update joueur
+    if(player.jumping) {
+      player.vy -= gravity;
+      player.y -= player.vy;
+      if(player.y >= HEIGHT - 130) {
+        player.y = HEIGHT - 130;
+        player.jumping = false;
+        player.vy = 0;
+        player.currentAnim = 'run';
+      }
+    }
+    if(player.sliding) {
+      player.slideTimer--;
+      if(player.slideTimer <= 0) {
+        player.sliding = false;
+        player.currentAnim = 'run';
+        player.height = 60;
+        player.y = HEIGHT - 130;
+      }
+    }
+
+    // Obstacles
+    obstacleTimer++;
+    if(obstacleTimer > obstacleInterval) {
+      obstacleTimer = 0;
+      const types = ['low', 'mid', 'high'];
+      const t = types[Math.floor(Math.random() * types.length)];
+      obstacles.push(new Obstacle(t));
+      if(obstacleInterval > 40) obstacleInterval -= 1;
+      gameSpeed += 0.005;
+    }
+
+    obstacles.forEach((obs, i) => {
+      obs.speed = gameSpeed;
+      obs.update();
+
+      // Collision detection AABB simple
+      let px = player.x;
+      let py = player.y;
+      let pw = player.width;
+      let ph = player.height;
+      let ox = obs.x;
+      let oy = obs.y;
+      let ow = obs.width;
+      let oh = obs.height;
+
+      if(px < ox + ow &&
+         px + pw > ox &&
+         py < oy + oh &&
+         py + ph > oy) {
+        // Collision détectée
+        gameOver = true;
+        if(score > highScore) highScore = score;
+        playSound(100, 0.5);
+      }
+
+      if(obs.x + obs.width < 0) {
+        obstacles.splice(i,1);
+        score++;
+        playSound(300, 0.05);
+      }
+    });
+
+    // Animation frames joueur
+    player.frameCount++;
+    if(player.frameCount % 5 === 0) {
+      player.frameIndex++;
+      if(player.currentAnim === 'run' && player.frameIndex >= animFrames.run.length) player.frameIndex = 0;
+      if(player.currentAnim === 'jump' && player.frameIndex >= animFrames.jump.length) player.frameIndex = animFrames.jump.length - 1;
+      if(player.currentAnim === 'slide' && player.frameIndex >= animFrames.slide.length) player.frameIndex = 0;
+    }
+
+    // Augmenter score doucement
+    score += 0.1;
+  }
+
+  function draw() {
+    // Effacer
+    ctx.clearRect(0,0,WIDTH,HEIGHT);
+
+    // Sol
+    ctx.strokeStyle = '#00ffff';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = '#00ffff';
+    ctx.shadowBlur = 5;
+    ctx.beginPath();
+    ctx.moveTo(0, HEIGHT - 50);
+    ctx.lineTo(WIDTH, HEIGHT - 50);
+    ctx.stroke();
+
+    // Dessiner obstacles
+    obstacles.forEach(obs => obs.draw());
+
+    // Dessiner joueur
+    drawPlayerFrame(player.x, player.y, player.frameIndex, player.currentAnim);
+
+    // Score
+    ctx.fillStyle = '#00ffff';
+    ctx.font = 'bold 24px monospace';
+    ctx.shadowColor = '#00ffff';
+    ctx.shadowBlur = 10;
+    ctx.fillText(`Score: ${Math.floor(score)}`, 20, 40);
+
+    if(gameOver) {
+      ctx.fillStyle = '#ff0044';
+      ctx.font = 'bold 48px monospace';
+      ctx.fillText('Game Over!', WIDTH / 2 - 130, HEIGHT / 2);
+      ctx.font = '24px monospace';
+      ctx.fillText(`High Score: ${Math.floor(Math.max(score, highScore))}`, WIDTH / 2 - 110, HEIGHT / 2 + 40);
+      ctx.fillText('Refresh page to restart', WIDTH / 2 - 130, HEIGHT / 2 + 80);
+    }
+  }
+
+  function loop() {
+    update();
+    draw();
+    if(!gameOver) requestAnimationFrame(loop);
+  }
+
+  // Controls
+  window.addEventListener('keydown', (e) => {
+    if(gameOver) return;
+    if(e.key === 'ArrowUp' && !player.jumping && !player.sliding) {
+      player.vy = jumpForce;
+      player.jumping = true;
+      player.currentAnim = 'jump';
+      playSound(600, 0.1);
+    }
+    if(e.key === 'ArrowDown' && !player.jumping && !player.sliding) {
+      player.sliding = true;
+      player.slideTimer = 20;
+      player.currentAnim = 'slide';
+      player.height = 30;
+      player.y = HEIGHT - 100;
+      playSound(400, 0.1);
+    }
+  });
+
+  // --- START ---
+  function startGame() {
+    obstacles = [];
+    gameSpeed = 6;
+    score = 0;
+    gameOver = false;
+    player.y = HEIGHT - 130;
+    player.vy = 0;
+    player.jumping = false;
+    player.sliding = false;
+    player.frameIndex = 0;
+    player.frameCount = 0;
+    player.currentAnim = 'run';
+
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    startMusic();
+
+    loop();
+  }
+
+  // Export startGame au global
+  window.startGame = startGame;
+
+})();
+</script>
+
+<script>
+  const startScreen = document.getElementById('start-screen');
+  const gameScreen = document.getElementById('game-screen');
+  const canvas = document.getElementById('game-canvas');
+  const startBtn = document.getElementById('start-btn');
+
+  startBtn.addEventListener('click', () => {
+    startScreen.style.display = 'none';
+    canvas.style.display = 'block';
+    gameScreen.style.display = 'flex';
+    window.startGame();
+  });
+</script>
+
+</body>
+</html>
