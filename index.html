@@ -78,23 +78,21 @@
     currentAnim: 'run'
   };
 
-  // Obstacle class
   class Obstacle {
     constructor(type) {
       this.type = type;
-      // Définir taille et position selon type
       if (type === 'low') {
         this.width = 20;
         this.height = 40;
-        this.y = HEIGHT - 50 - this.height; // au sol
+        this.y = HEIGHT - 50 - this.height;
       } else if (type === 'mid') {
         this.width = 30;
         this.height = 50;
-        this.y = HEIGHT - 130; // milieu, à la hauteur du joueur debout (donc à sauter)
+        this.y = HEIGHT - 130;
       } else if (type === 'high') {
         this.width = 40;
         this.height = 40;
-        this.y = HEIGHT - 200; // en haut, obstacle à esquiver en se baissant
+        this.y = HEIGHT - 200;
       }
       this.x = WIDTH + 20;
       this.speed = gameSpeed;
@@ -129,13 +127,6 @@
     gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
     osc.stop(audioCtx.currentTime + duration);
-  }
-
-  function startMusic() {
-    playSound(200, 0.05);
-    setTimeout(() => {
-      if(!gameOver) startMusic();
-    }, 400);
   }
 
   const animFrames = {
@@ -209,16 +200,15 @@
     obstacleTimer++;
     if(obstacleTimer > obstacleInterval) {
       obstacleTimer = 0;
-      // Proba pondérée pour équilibrer les obstacles
       const r = Math.random();
       let t;
-      if(r < 0.4) t = 'low';       // 40% obstacles au sol
-      else if(r < 0.75) t = 'high';// 35% obstacles en haut
-      else t = 'mid';              // 25% obstacles milieu
+      if(r < 0.4) t = 'low';
+      else if(r < 0.75) t = 'high';
+      else t = 'mid';
       obstacles.push(new Obstacle(t));
 
-      if(obstacleInterval > 30) obstacleInterval -= 0.7; // baisse plus rapide
-      gameSpeed += 0.02;  // accélération plus forte
+      if(obstacleInterval > 30) obstacleInterval -= 0.7;
+      gameSpeed += 0.04; // accélération plus forte
     }
 
     obstacles.forEach((obs, i) => {
@@ -245,7 +235,7 @@
 
       if(obs.x + obs.width < 0) {
         obstacles.splice(i,1);
-        score++;  // +1 point par obstacle passé
+        score++;
         playSound(300, 0.05);
       }
     });
@@ -321,4 +311,24 @@
     score = 0;
     gameOver = false;
     player.y = HEIGHT - 130;
-    player.vy = 
+    player.vy = 0;
+    player.jumping = false;
+    player.sliding = false;
+    player.currentAnim = 'run';
+    player.height = 60;
+    player.frameIndex = 0;
+    player.frameCount = 0;
+  }
+
+  document.getElementById('start-btn').addEventListener('click', () => {
+    document.getElementById('start-screen').style.display = 'none';
+    canvas.style.display = 'block';
+    startGame();
+    loop();
+  });
+
+})();
+</script>
+
+</body>
+</html>
