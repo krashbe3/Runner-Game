@@ -1,64 +1,34 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Krahcore Runner Game</title>
-  <style>
-    body {
-      margin: 0; background: #001f2f; color: #00ffff; font-family: 'Courier New', monospace; overflow: hidden;
-      display: flex; justify-content: center; align-items: center; height: 100vh;
-      flex-direction: column;
-    }
-    canvas {
-      background: #001f2f;
-      box-shadow: 0 0 30px #00ffff;
-      border-radius: 10px;
-    }
-    #start-screen {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: rgba(0, 0, 0, 0.85);
-      color: #00ffff;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      font-family: 'Courier New', monospace;
-      z-index: 10;
-    }
-    #start-screen button {
-      margin-top: 20px;
-      padding: 10px 20px;
-      font-size: 18px;
-      background: #00ffff;
-      color: #001f2f;
-      border: none;
-      border-radius: 10px;
-      cursor: pointer;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Krahcore Runner Game</title>
+<style>
+  body {
+    margin: 0; background: #001f2f; color: #00ffff; font-family: 'Courier New', monospace; overflow: hidden;
+    display: flex; justify-content: center; align-items: center; height: 100vh;
+    flex-direction: column;
+  }
+  canvas {
+    background: #001f2f;
+    box-shadow: 0 0 30px #00ffff;
+    border-radius: 10px;
+  }
+</style>
 </head>
 <body>
-  <div id="start-screen">
-    <h1>Krahcore Runner Game</h1>
-    <p>Meilleur score : <span id="highscore-display">0</span></p>
-    <button onclick="startGameHandler()">Commencer</button>
-  </div>
   <canvas id="game-canvas" width="800" height="300"></canvas>
+  <button id="restart-btn" style="margin-top: 15px; padding: 10px 20px; font-family: monospace; font-weight: bold; font-size: 18px; color: #00ffff; background: #001f2f; border: 2px solid #00ffff; border-radius: 8px; cursor: pointer; display: none;">Recommencer</button>
 
 <script>
 (() => {
   const canvas = document.getElementById('game-canvas');
   const ctx = canvas.getContext('2d');
-  const startScreen = document.getElementById('start-screen');
-  const highscoreDisplay = document.getElementById('highscore-display');
+  const restartBtn = document.getElementById('restart-btn');
 
   const WIDTH = canvas.width;
   const HEIGHT = canvas.height;
-
-  const particles = [];
 
   const player = {
     x: 50,
@@ -75,17 +45,12 @@
   };
 
   class Obstacle {
-    constructor(type) {
-      this.type = type;
-      if (type === 'low') {
-        this.width = 20;
-        this.height = 40;
-        this.y = HEIGHT - 50 - this.height;
-      } else if (type === 'high') {
-        this.width = 40;
-        this.height = 40;
-        this.y = HEIGHT - 120; // ajusté pour forcer la glissade
-      }
+    constructor() {
+      // Only 'low' obstacles now, width variable but always passable
+      this.type = 'low';
+      this.width = 15 + Math.random() * 30;  // width between 15 and 45 px
+      this.height = 40;
+      this.y = HEIGHT - 50 - this.height;
       this.x = WIDTH + 20;
       this.speed = gameSpeed;
     }
@@ -100,32 +65,10 @@
     }
   }
 
-  class Particle {
-    constructor(x, y) {
-      this.x = x;
-      this.y = y;
-      this.vx = Math.random() * 4 - 2;
-      this.vy = Math.random() * -2 - 1;
-      this.alpha = 1;
-    }
-    update() {
-      this.x += this.vx;
-      this.y += this.vy;
-      this.alpha -= 0.02;
-    }
-    draw() {
-      ctx.fillStyle = `rgba(0, 255, 255, ${this.alpha})`;
-      ctx.beginPath();
-      ctx.arc(this.x, this.y, 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
   let obstacles = [];
   let gameSpeed = 8;
   let score = 0;
-  let highScore = localStorage.getItem('krahcoreHighscore') || 0;
-  highscoreDisplay.textContent = highScore;
+  let highScore = 0;
   let gameOver = false;
 
   let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -175,8 +118,8 @@
     obstacleTimer++;
     if(obstacleTimer > obstacleInterval) {
       obstacleTimer = 0;
-      const t = Math.random() < 0.5 ? 'low' : 'high';
-      obstacles.push(new Obstacle(t));
+      obstacles.push(new Obstacle());
+
       if(obstacleInterval > 30) obstacleInterval -= 1.2;
       gameSpeed += 0.08;
     }
@@ -185,16 +128,23 @@
       obs.speed = gameSpeed;
       obs.update();
 
-      let px = player.x, py = player.y, pw = player.width, ph = player.height;
-      let ox = obs.x, oy = obs.y, ow = obs.width, oh = obs.height;
+      let px = player.x;
+      let py = player.y;
+      let pw = player.width;
+      let ph = player.height;
+      let ox = obs.x;
+      let oy = obs.y;
+      let ow = obs.width;
+      let oh = obs.height;
 
-      if(px < ox + ow && px + pw > ox && py < oy + oh && py + ph > oy) {
+      if(px < ox + ow &&
+         px + pw > ox &&
+         py < oy + oh &&
+         py + ph > oy) {
         gameOver = true;
-        if(score > highScore) {
-          highScore = score;
-          localStorage.setItem('krahcoreHighscore', highScore);
-        }
+        if(score > highScore) highScore = score;
         playSound(100, 0.5);
+        restartBtn.style.display = 'inline-block';
       }
 
       if(obs.x + obs.width < 0) {
@@ -208,12 +158,9 @@
     if(player.frameCount % 5 === 0) {
       player.frameIndex++;
       if(player.currentAnim === 'run' && player.frameIndex >= 4) player.frameIndex = 0;
+      if(player.currentAnim === 'jump' && player.frameIndex >= 4) player.frameIndex = 3;
+      if(player.currentAnim === 'slide' && player.frameIndex >= 3) player.frameIndex = 0;
     }
-
-    particles.forEach((p, i) => {
-      p.update();
-      if(p.alpha <= 0) particles.splice(i, 1);
-    });
   }
 
   function draw() {
@@ -229,8 +176,8 @@
     ctx.stroke();
 
     obstacles.forEach(obs => obs.draw());
-    particles.forEach(p => p.draw());
 
+    // Draw player (simple rectangle with neon glow)
     ctx.fillStyle = '#00ffff';
     ctx.shadowColor = '#00ffff';
     ctx.shadowBlur = 10;
@@ -242,13 +189,14 @@
     ctx.shadowBlur = 10;
     ctx.fillText(`Score: ${score}`, 20, 40);
 
+    ctx.fillText(`Best Score: ${highScore}`, WIDTH - 180, 40);
+
     if(gameOver) {
       ctx.fillStyle = '#ff0044';
       ctx.font = 'bold 48px monospace';
       ctx.fillText('Game Over!', WIDTH / 2 - 130, HEIGHT / 2);
       ctx.font = '24px monospace';
       ctx.fillText(`High Score: ${highScore}`, WIDTH / 2 - 110, HEIGHT / 2 + 40);
-      ctx.fillText('Appuie sur Espace pour rejouer', WIDTH / 2 - 160, HEIGHT / 2 + 80);
     }
   }
 
@@ -272,19 +220,18 @@
     player.frameIndex = 0;
     player.frameCount = 0;
     obstacleInterval = 100;
-    particles.length = 0;
+    restartBtn.style.display = 'none';
     loop();
   }
 
+  // Controls
   window.addEventListener('keydown', e => {
-    if(gameOver && e.key === ' ') {
-      startGame();
-    }
-    if(e.key === 'ArrowUp' && !player.jumping && !player.sliding) {
+    if(gameOver) return;
+
+    if(e.code === 'Space' && !player.jumping && !player.sliding) {
       player.jumping = true;
       player.vy = jumpForce;
       player.currentAnim = 'jump';
-      for(let i = 0; i < 10; i++) particles.push(new Particle(player.x + 20, player.y + player.height));
       playSound(500, 0.1);
     }
     if(e.key === 'ArrowDown' && !player.jumping && !player.sliding) {
@@ -293,14 +240,14 @@
       player.currentAnim = 'slide';
       player.height = 30;
       player.y = HEIGHT - 100;
-      for(let i = 0; i < 10; i++) particles.push(new Particle(player.x + 20, player.y + player.height));
     }
   });
 
-  window.startGameHandler = () => {
-    startScreen.style.display = 'none';
+  restartBtn.addEventListener('click', () => {
     startGame();
-  }
+  });
+
+  startGame();
 })();
 </script>
 </body>
