@@ -1,259 +1,325 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Krashcore Dino Runner</title>
-<style>
-  body {
-    margin: 0; background: #001f2f; color: #00ffff; font-family: 'Courier New', monospace; overflow: hidden;
-    display: flex; justify-content: center; align-items: center; height: 100vh;
-    flex-direction: column;
-  }
-  canvas {
-    background: #001f2f;
-    box-shadow: 0 0 30px #00ffff;
-    border-radius: 10px;
-  }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Krahcore Runner Game</title>
+  <style>
+    body {
+      margin: 0;
+      background: #001f2f;
+      color: #00ffff;
+      font-family: 'Courier New', monospace;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      flex-direction: column;
+    }
+    canvas {
+      background: #001f2f;
+      box-shadow: 0 0 30px #00ffff;
+      border-radius: 10px;
+    }
+    #start-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0,0,0,0.8);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: #00ffff;
+      font-size: 24px;
+      z-index: 10;
+    }
+    #start-screen button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 18px;
+      cursor: pointer;
+      background: #00ffff;
+      color: #001f2f;
+      border: none;
+      border-radius: 5px;
+      font-family: 'Courier New', monospace;
+    }
+  </style>
 </head>
 <body>
+  <div id="start-screen">
+    <h1>Krahcore Runner Game</h1>
+    <p>Meilleur score : <span id="best-score">0</span></p>
+    <button onclick="startGame()">Jouer</button>
+  </div>
   <canvas id="game-canvas" width="800" height="300"></canvas>
 
-<script>
-(() => {
-  const canvas = document.getElementById('game-canvas');
-  const ctx = canvas.getContext('2d');
+  <script>
+    (() => {
+      const canvas = document.getElementById('game-canvas');
+      const ctx = canvas.getContext('2d');
+      const startScreen = document.getElementById('start-screen');
+      const bestScoreEl = document.getElementById('best-score');
 
-  const WIDTH = canvas.width;
-  const HEIGHT = canvas.height;
+      const WIDTH = canvas.width;
+      const HEIGHT = canvas.height;
 
-  const player = {
-    x: 50,
-    y: HEIGHT - 130,
-    width: 40,
-    height: 60,
-    vy: 0,
-    jumping: false,
-    sliding: false,
-    slideTimer: 0,
-    frameIndex: 0,
-    frameCount: 0,
-    currentAnim: 'run'
-  };
+      let bestScore = localStorage.getItem('krahcore-best-score') || 0;
+      bestScoreEl.textContent = bestScore;
 
-  class Obstacle {
-    constructor(type) {
-      this.type = type;
-      if (type === 'low') {
-        this.width = 20;
-        this.height = 40;
-        this.y = HEIGHT - 50 - this.height;
-      } else if (type === 'mid') {
-        this.width = 30;
-        this.height = 50;
-        this.y = HEIGHT - 130;
-      } else if (type === 'high') {
-        this.width = 40;
-        this.height = 40;
-        this.y = HEIGHT - 90;  // plus bas pour forcer à se baisser
+      const player = {
+        x: 50,
+        y: HEIGHT - 130,
+        width: 40,
+        height: 60,
+        vy: 0,
+        jumping: false,
+        sliding: false,
+        slideTimer: 0,
+        frameIndex: 0,
+        frameCount: 0,
+        currentAnim: 'run'
+      };
+
+      class Obstacle {
+        constructor(type) {
+          this.type = type;
+          if (type === 'low') {
+            this.width = 20;
+            this.height = 40;
+            this.y = HEIGHT - 50 - this.height;
+          } else if (type === 'mid') {
+            this.width = 30;
+            this.height = 50;
+            this.y = HEIGHT - 130;
+          } else if (type === 'high') {
+            this.width = 40;
+            this.height = 40;
+            this.y = HEIGHT - 200; // plus haut => il faut glisser
+          }
+          this.x = WIDTH + 20;
+          this.speed = gameSpeed;
+        }
+        update() {
+          this.x -= this.speed;
+        }
+        draw() {
+          ctx.fillStyle = '#ff0044';
+          ctx.shadowColor = '#ff0044';
+          ctx.shadowBlur = 10;
+          ctx.fillRect(this.x, this.y, this.width, this.height);
+        }
       }
-      this.x = WIDTH + 20;
-      this.speed = gameSpeed;
-    }
-    update() {
-      this.x -= this.speed;
-    }
-    draw() {
-      ctx.fillStyle = '#ff0044';
-      ctx.shadowColor = '#ff0044';
-      ctx.shadowBlur = 10;
-      ctx.fillRect(this.x, this.y, this.width, this.height);
-    }
-  }
 
-  let obstacles = [];
-  let gameSpeed = 8;  // vitesse initiale augmentée
-  let score = 0;
-  let highScore = 0;
-  let gameOver = false;
+      class Particle {
+        constructor(x, y, color) {
+          this.x = x;
+          this.y = y;
+          this.radius = Math.random() * 3 + 2;
+          this.vx = (Math.random() - 0.5) * 6;
+          this.vy = (Math.random() - 1.5) * 6;
+          this.alpha = 1;
+          this.color = color;
+        }
+        update() {
+          this.x += this.vx;
+          this.y += this.vy;
+          this.alpha -= 0.03;
+        }
+        draw() {
+          ctx.save();
+          ctx.globalAlpha = this.alpha;
+          ctx.fillStyle = this.color;
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
 
-  let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      let particles = [];
+      function spawnParticles(x, y, color) {
+        for (let i = 0; i < 10; i++) {
+          particles.push(new Particle(x, y, color));
+        }
+      }
 
-  function playSound(frequency, duration=0.1) {
-    if(audioCtx.state === 'suspended') audioCtx.resume();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    osc.frequency.value = frequency;
-    osc.start();
-    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-    osc.stop(audioCtx.currentTime + duration);
-  }
+      let obstacles = [];
+      let gameSpeed = 8;
+      let score = 0;
+      let gameOver = false;
 
-  const gravity = 1.2;
-  const jumpForce = 18;
+      const gravity = 1.2;
+      const jumpForce = 18;
 
-  let obstacleTimer = 0;
-  let obstacleInterval = 100;
+      let obstacleTimer = 0;
+      let obstacleInterval = 100;
 
-  function update() {
-    if(gameOver) return;
+      function update() {
+        if (gameOver) return;
 
-    if(player.jumping) {
-      player.vy -= gravity;
-      player.y -= player.vy;
-      if(player.y >= HEIGHT - 130) {
+        particles.forEach(p => p.update());
+        particles = particles.filter(p => p.alpha > 0);
+
+        if (player.jumping) {
+          player.vy -= gravity;
+          player.y -= player.vy;
+          player.height = 70;
+          if (player.y >= HEIGHT - 130) {
+            player.y = HEIGHT - 130;
+            player.jumping = false;
+            player.vy = 0;
+            player.height = 60;
+            player.currentAnim = 'run';
+          }
+        }
+
+        if (player.sliding) {
+          player.slideTimer--;
+          player.height = 30;
+          player.y = HEIGHT - 100;
+          if (player.slideTimer <= 0) {
+            player.sliding = false;
+            player.currentAnim = 'run';
+            player.height = 60;
+            player.y = HEIGHT - 130;
+          }
+        }
+
+        obstacleTimer++;
+        if (obstacleTimer > obstacleInterval) {
+          obstacleTimer = 0;
+          const r = Math.random();
+          let t;
+          if (r < 0.3) t = 'low';
+          else if (r < 0.8) t = 'high';
+          else t = 'mid';
+          obstacles.push(new Obstacle(t));
+
+          if (obstacleInterval > 30) obstacleInterval -= 1.2;
+          gameSpeed += 0.08;
+        }
+
+        obstacles.forEach((obs, i) => {
+          obs.speed = gameSpeed;
+          obs.update();
+
+          let px = player.x;
+          let py = player.y;
+          let pw = player.width;
+          let ph = player.height;
+          let ox = obs.x;
+          let oy = obs.y;
+          let ow = obs.width;
+          let oh = obs.height;
+
+          if (
+            px < ox + ow &&
+            px + pw > ox &&
+            py < oy + oh &&
+            py + ph > oy
+          ) {
+            gameOver = true;
+            if (score > bestScore) {
+              bestScore = score;
+              localStorage.setItem('krahcore-best-score', bestScore);
+            }
+          }
+
+          if (obs.x + obs.width < 0) {
+            obstacles.splice(i, 1);
+            score++;
+          }
+        });
+
+        player.frameCount++;
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+        ctx.strokeStyle = '#00ffff';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = '#00ffff';
+        ctx.shadowBlur = 5;
+        ctx.beginPath();
+        ctx.moveTo(0, HEIGHT - 50);
+        ctx.lineTo(WIDTH, HEIGHT - 50);
+        ctx.stroke();
+
+        particles.forEach(p => p.draw());
+
+        obstacles.forEach(obs => obs.draw());
+
+        ctx.fillStyle = '#00ffff';
+        ctx.shadowColor = '#00ffff';
+        ctx.shadowBlur = 10;
+        ctx.fillRect(player.x, player.y, player.width, player.height);
+
+        ctx.fillStyle = '#00ffff';
+        ctx.font = 'bold 24px monospace';
+        ctx.fillText(`Score: ${score}`, 20, 40);
+
+        if (gameOver) {
+          ctx.fillStyle = '#ff0044';
+          ctx.font = 'bold 48px monospace';
+          ctx.fillText('Game Over!', WIDTH / 2 - 130, HEIGHT / 2);
+          ctx.font = '24px monospace';
+          ctx.fillText(`High Score: ${bestScore}`, WIDTH / 2 - 110, HEIGHT / 2 + 40);
+          ctx.fillText('Appuie sur Entrée pour rejouer', WIDTH / 2 - 160, HEIGHT / 2 + 80);
+        }
+      }
+
+      function loop() {
+        update();
+        draw();
+        if (!gameOver) requestAnimationFrame(loop);
+      }
+
+      window.addEventListener('keydown', e => {
+        if (gameOver && e.key === 'Enter') {
+          startGame();
+          return;
+        }
+
+        if (e.key === 'ArrowUp' && !player.jumping && !player.sliding) {
+          player.jumping = true;
+          player.vy = jumpForce;
+          player.currentAnim = 'jump';
+          spawnParticles(player.x + player.width / 2, player.y + player.height, '#00ffff');
+        }
+
+        if (e.key === 'ArrowDown' && !player.jumping && !player.sliding) {
+          player.sliding = true;
+          player.slideTimer = 20;
+          player.currentAnim = 'slide';
+          spawnParticles(player.x + player.width / 2, player.y + player.height, '#00ffff');
+        }
+      });
+
+      window.startGame = function () {
+        startScreen.style.display = 'none';
+        obstacles = [];
+        particles = [];
+        gameSpeed = 8;
+        score = 0;
+        gameOver = false;
         player.y = HEIGHT - 130;
-        player.jumping = false;
         player.vy = 0;
-        player.currentAnim = 'run';
-      }
-    }
-    if(player.sliding) {
-      player.slideTimer--;
-      if(player.slideTimer <= 0) {
+        player.jumping = false;
         player.sliding = false;
         player.currentAnim = 'run';
         player.height = 60;
-        player.y = HEIGHT - 130;
+        player.frameIndex = 0;
+        player.frameCount = 0;
+        obstacleInterval = 100;
+        loop();
       }
-    }
-
-    obstacleTimer++;
-    if(obstacleTimer > obstacleInterval) {
-      obstacleTimer = 0;
-      const r = Math.random();
-      let t;
-      if(r < 0.3) t = 'low';       // 30% obstacles au sol (à sauter)
-      else if(r < 0.8) t = 'high'; // 50% obstacles hauts (à glisser dessous)
-      else t = 'mid';              // 20% obstacles milieu (à sauter)
-      obstacles.push(new Obstacle(t));
-
-      if(obstacleInterval > 30) obstacleInterval -= 1.2;
-      gameSpeed += 0.08;
-    }
-
-    obstacles.forEach((obs, i) => {
-      obs.speed = gameSpeed;
-      obs.update();
-
-      let px = player.x;
-      let py = player.y;
-      let pw = player.width;
-      let ph = player.height;
-      let ox = obs.x;
-      let oy = obs.y;
-      let ow = obs.width;
-      let oh = obs.height;
-
-      if(px < ox + ow &&
-         px + pw > ox &&
-         py < oy + oh &&
-         py + ph > oy) {
-        gameOver = true;
-        if(score > highScore) highScore = score;
-        playSound(100, 0.5);
-      }
-
-      if(obs.x + obs.width < 0) {
-        obstacles.splice(i,1);
-        score++;
-        playSound(300, 0.05);
-      }
-    });
-
-    player.frameCount++;
-    if(player.frameCount % 5 === 0) {
-      player.frameIndex++;
-      if(player.currentAnim === 'run' && player.frameIndex >= 4) player.frameIndex = 0;
-      if(player.currentAnim === 'jump' && player.frameIndex >= 4) player.frameIndex = 3;
-      if(player.currentAnim === 'slide' && player.frameIndex >= 3) player.frameIndex = 0;
-    }
-  }
-
-  function draw() {
-    ctx.clearRect(0,0,WIDTH,HEIGHT);
-
-    ctx.strokeStyle = '#00ffff';
-    ctx.lineWidth = 2;
-    ctx.shadowColor = '#00ffff';
-    ctx.shadowBlur = 5;
-    ctx.beginPath();
-    ctx.moveTo(0, HEIGHT - 50);
-    ctx.lineTo(WIDTH, HEIGHT - 50);
-    ctx.stroke();
-
-    obstacles.forEach(obs => obs.draw());
-
-    // Draw player (simple rectangle with neon glow)
-    ctx.fillStyle = '#00ffff';
-    ctx.shadowColor = '#00ffff';
-    ctx.shadowBlur = 10;
-    ctx.fillRect(player.x, player.y, player.width, player.height);
-
-    ctx.fillStyle = '#00ffff';
-    ctx.font = 'bold 24px monospace';
-    ctx.shadowColor = '#00ffff';
-    ctx.shadowBlur = 10;
-    ctx.fillText(`Score: ${score}`, 20, 40);
-
-    if(gameOver) {
-      ctx.fillStyle = '#ff0044';
-      ctx.font = 'bold 48px monospace';
-      ctx.fillText('Game Over!', WIDTH / 2 - 130, HEIGHT / 2);
-      ctx.font = '24px monospace';
-      ctx.fillText(`High Score: ${highScore}`, WIDTH / 2 - 110, HEIGHT / 2 + 40);
-      ctx.fillText('Recharge la page pour rejouer', WIDTH / 2 - 140, HEIGHT / 2 + 80);
-    }
-  }
-
-  function loop() {
-    update();
-    draw();
-    if(!gameOver) requestAnimationFrame(loop);
-  }
-
-  function startGame() {
-    obstacles = [];
-    gameSpeed = 8;
-    score = 0;
-    gameOver = false;
-    player.y = HEIGHT - 130;
-    player.vy = 0;
-    player.jumping = false;
-    player.sliding = false;
-    player.currentAnim = 'run';
-    player.height = 60;
-    player.frameIndex = 0;
-    player.frameCount = 0;
-    obstacleInterval = 100;
-  }
-
-  // Controls
-  window.addEventListener('keydown', e => {
-    if(gameOver) return;
-
-    if(e.key === 'ArrowUp' && !player.jumping && !player.sliding) {
-      player.jumping = true;
-      player.vy = jumpForce;
-      player.currentAnim = 'jump';
-      playSound(500, 0.1);
-    }
-    if(e.key === 'ArrowDown' && !player.jumping && !player.sliding) {
-      player.sliding = true;
-      player.slideTimer = 20;
-      player.currentAnim = 'slide';
-      player.height = 30;
-      player.y = HEIGHT - 100;
-    }
-  });
-
-  startGame();
-  loop();
-})();
-</script>
+    })();
+  </script>
 </body>
 </html>
